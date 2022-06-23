@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -81,3 +84,52 @@ func TestBuscaAlunoPorCPFHandler(t *testing.T) {
 }
 
 //Executar somente um teste: go test -run TestBuscaAlunoPorCPFHandler
+
+func TestBuscaAlunoPorIDHandler(t *testing.T) {
+	database.ConectaComBancoDeDados()
+	CriaAlunoMock()
+	defer DeletaAlunoMock()
+	r := SetupDasRotasDeTeste()
+	r.GET("/alunos/:id", controllers.BuscaAlunoPorID)
+	pathDaBusca := "/alunos/" + strconv.Itoa(ID)
+	req, _ := http.NewRequest("GET", pathDaBusca, nil)
+	resposta := httptest.NewRecorder()
+	r.ServeHTTP(resposta, req)
+	var alunoMock models.Aluno
+	json.Unmarshal(resposta.Body.Bytes(), &alunoMock)
+	fmt.Println(alunoMock.Nome)
+	assert.Equal(t, "Nome do Aluno Teste", alunoMock.Nome, "Os nomes devem ser iguais!")
+	assert.Equal(t, "12345678910", alunoMock.CPF)
+	assert.Equal(t, "12345679", alunoMock.RG)
+}
+
+func TestDeletaAlunoHandler(t *testing.T) {
+	database.ConectaComBancoDeDados()
+	CriaAlunoMock()
+	r := SetupDasRotasDeTeste()
+	r.DELETE("/alunos/:id", controllers.DeletaAluno)
+	pathBusca := "/alunos/" + strconv.Itoa(ID)
+	req, _ := http.NewRequest("DELETE", pathBusca, nil)
+	resposta := httptest.NewRecorder()
+	r.ServeHTTP(resposta, req)
+	assert.Equal(t, http.StatusOK, resposta.Code)
+}
+
+func TestEditaUmAlunoHandler(t *testing.T) {
+	database.ConectaComBancoDeDados()
+	CriaAlunoMock()
+	defer DeletaAlunoMock()
+	r := SetupDasRotasDeTeste()
+	r.PATCH("/alunos/:id", controllers.EditaAluno)
+	aluno := models.Aluno{Nome: "Nome do Aluno Teste", CPF: "47345678910", RG: "123456009"}
+	valorJson, _ := json.Marshal(aluno)
+	pathParaEditar := "/alunos/" + strconv.Itoa(ID)
+	req, _ := http.NewRequest("PATCH", pathParaEditar, bytes.NewBuffer(valorJson))
+	resposta := httptest.NewRecorder()
+	r.ServeHTTP(resposta, req)
+	var alunoMockAtualizado models.Aluno
+	json.Unmarshal(resposta.Body.Bytes(), &alunoMockAtualizado)
+	assert.Equal(t, "47345678910", alunoMockAtualizado.CPF)
+	assert.Equal(t, "123456009", alunoMockAtualizado.RG)
+	assert.Equal(t, "Nome do Aluno Teste", alunoMockAtualizado.Nome)
+}
